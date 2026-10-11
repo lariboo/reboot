@@ -7,17 +7,16 @@
 <%+header%>
 
 <style type="text/css">
-.rb-card { max-width:420px; margin:2em auto; padding:2.2em 1.5em 1.8em; text-align:center; border-radius:16px;
-	background:rgba(128,128,128,.08); border:1px solid rgba(128,128,128,.22); box-shadow:0 6px 24px rgba(0,0,0,.08); }
+.rb-card { max-width:420px; margin:2em auto; padding:2.2em 1.5em 1.8em; text-align:center; }
 .rb-btn { position:relative; width:112px; height:112px; padding:0; border:0; border-radius:50%; cursor:pointer; outline:none;
-	background:linear-gradient(145deg,#ffb347,#ef8200);
+	background:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><g fill='none' stroke='white' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'><path d='M13.2 25.2A20 20 0 0 1 50.8 25.2'/><path d='M13.2 25.2A20 20 0 0 1 50.8 25.2' transform='rotate(180 32 32)'/></g><g fill='white' stroke='white' stroke-width='2' stroke-linejoin='round'><polygon points='57,22.5 44.5,27 53.5,32.5'/><polygon points='57,22.5 44.5,27 53.5,32.5' transform='rotate(180 32 32)'/></g></svg>") center / 52% no-repeat,
+		linear-gradient(145deg,#ffb347,#ef8200);
 	box-shadow:0 8px 20px rgba(239,130,0,.45), inset 0 2px 4px rgba(255,255,255,.35);
 	transition:transform .15s ease, box-shadow .2s ease, filter .2s ease;
 	animation:rb-pulse 2.4s ease-in-out infinite; }
-.rb-btn::before { content:""; position:absolute; top:0; right:0; bottom:0; left:0;
-	background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><g fill='none' stroke='white' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'><path d='M13.2 25.2A20 20 0 0 1 50.8 25.2'/><path d='M13.2 25.2A20 20 0 0 1 50.8 25.2' transform='rotate(180 32 32)'/></g><g fill='white' stroke='white' stroke-width='2' stroke-linejoin='round'><polygon points='57,22.5 44.5,27 53.5,32.5'/><polygon points='57,22.5 44.5,27 53.5,32.5' transform='rotate(180 32 32)'/></g></svg>") center / 52% no-repeat; transition:transform .5s ease; }
+
 .rb-btn:hover { transform:scale(1.06); filter:brightness(1.08); box-shadow:0 12px 28px rgba(239,130,0,.6), inset 0 2px 4px rgba(255,255,255,.4); }
-.rb-btn:hover::before { transform:rotate(180deg); }
 .rb-btn:active { transform:scale(.94); box-shadow:0 3px 10px rgba(239,130,0,.5), inset 0 3px 8px rgba(0,0,0,.25); }
 .rb-btn:focus-visible { box-shadow:0 0 0 4px rgba(239,130,0,.35), 0 8px 20px rgba(239,130,0,.45); }
 .rb-title { margin:1.1em 0 .3em; font-size:1.15em; font-weight:600; }
@@ -29,7 +28,7 @@
 .rb-ok { margin:0; text-align:center; font-size:1.25em; font-weight:700; line-height:1.5; color:#2e9e5b; }
 @keyframes rb-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) {
-	.rb-btn { animation:none; transition:none; } .rb-btn::before { transition:none; } .rb-spin { animation-duration:4s; }
+	.rb-btn { animation:none; transition:none; } .rb-spin { animation-duration:4s; }
 }
 </style>
 
@@ -43,16 +42,17 @@
 	<p class="alert-message warning"><%:Warning: There are unsaved changes that will be lost while rebooting!%></p>
 <%- end -%>
 
-<div class="rb-card">
-	<div id="rb-idle">
-		<button type="button" class="rb-btn" title="<%:Perform reboot%>" onclick="doReboot()"></button>
-		<div class="rb-title"><%:Perform reboot%></div>
+<form method="post" action="<%=luci.dispatcher.build_url('admin/system/reboot/call')%>" onsubmit="return doReboot()">
+	<input type="hidden" name="token" value="<%=token%>" />
+	<div class="rb-card">
+		<button type="submit" class="rb-btn" id="rb-btn" title="<%:Perform reboot%>"></button>
+		<div class="rb-title" id="rb-title"><%:Perform reboot%></div>
+		<div id="rb-busy" style="display:none">
+			<div class="rb-spin"></div>
+			<p class="rb-ok">设备正在重启中，请稍候……</p>
+		</div>
 	</div>
-	<div id="rb-busy" style="display:none">
-		<div class="rb-spin"></div>
-		<p class="rb-ok">设备正在重启中，请稍候……</p>
-	</div>
-</div>
+</form>
 
 <script type="text/javascript">//<![CDATA[
 	var tries = 0;
@@ -71,20 +71,24 @@
 		img.src = '<%=resource%>/icons/loading.gif?' + Math.random();
 	}
 
+	function showBusy(on) {
+		document.getElementById('rb-btn').style.display = on ? 'none' : '';
+		document.getElementById('rb-title').style.display = on ? 'none' : '';
+		document.getElementById('rb-busy').style.display = on ? '' : 'none';
+	}
+
 	function doReboot() {
 		if (!confirm('确定要重启设备吗？'))
-			return;
+			return false;
 
-		document.getElementById('rb-idle').style.display = 'none';
-		document.getElementById('rb-busy').style.display = '';
+		showBusy(true);
 
 		var xhr = new XMLHttpRequest();
 		xhr.open('POST', '<%=controller%>/admin/system/reboot/call', true);
 		xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 		xhr.onload = function() {
 			if (xhr.status >= 400) {          /* 如 token 失效，恢复按钮 */
-				document.getElementById('rb-busy').style.display = 'none';
-				document.getElementById('rb-idle').style.display = '';
+				showBusy(false);
 				alert('重启请求失败，请刷新页面后重试');
 			}
 			else
@@ -94,6 +98,7 @@
 			window.setTimeout(ping, 20000);
 		};
 		xhr.send('token=<%=token%>');
+		return false;   /* 阻止表单整页提交，改用上面的异步请求 */
 	}
 //]]></script>
 
